@@ -1,7 +1,182 @@
 #include "Sudoku_Solver.h"
+
 /*
 * Setup Functions
 */
+
+	// Reads user input
+void Input()
+{
+	int Input_Column, Input_Row, Input_Value = 0;
+
+	// Displays opening message, shows current board, saves move to history
+	cout << Opening_Message;
+	Display_Known();
+	Save_Move();
+	
+	cout << "Time: " << duration << endl;
+
+	// User inputs column, row, and input value
+	cout << "Column: ";
+	cin >> Input_Column;
+	cout << "Row: ";
+	cin >> Input_Row;
+	cout << "Value: ";
+	cin >> Input_Value;
+	cout << endl;
+	Input_Row--;
+	Input_Column--;
+
+	// Interprets and acts on the input
+	Display_Contradictory =	true;
+	Auto = false;
+	Handle_Input(Input_Row, Input_Column, Input_Value);
+}
+
+	// Interprets input, acts on it, and calls appropriate functions for that input
+void Handle_Input(int Input_Row, int Input_Column, int Input_Value)
+{
+	int Num_Known_Values = 0;
+
+	if ((Input_Value > 0 && Input_Value < 10) || Input_Value == 0) // Inputs 1-9 set a square on the board, 0 resets a square.
+	{
+		if (!Check_Contradictory_Values(Input_Column, Input_Row, Input_Value)) // Makes sure the value doesn't conflict with known squares
+		{
+			// Sets a square, and resets possible values to avoid possible false negatives
+			Known [Input_Column][Input_Row] = Input_Value;
+			Possibilities_Reset();
+			Eliminate_Possible_Using_Known();
+		}
+	}
+	else if (Input_Value == -1) // Resets the board
+	{
+		system ("CLS");
+		Known_Reset();
+		Possibilities_Reset();
+		Reset_History();
+	}
+	else if (Input_Value == -2) // Goes back a move
+	{
+		system ("CLS");
+		Undo_Move();
+	}
+	else if (Input_Value == 10) // Displays the possible values of each square
+	{
+		system("CLS");
+		Display_Possible();
+	}
+	else if (Input_Value == 11) // Displays previous moves
+	{
+		system("CLS");
+		Display_History();
+	}
+	else if (Input_Value == 12 || Input_Value == 13) // Automatically inputs numbers
+	{
+		Display_Contradictory =	false;
+		if (Input_Value == 12) // If input is 12, automatically outputs too
+			Auto = true;
+		else
+			Auto = false;
+
+		// Resets board before inputting
+		Known_Reset();
+		Possibilities_Reset();
+		Reset_History();
+
+		// 5 second delay so user can place cursor on board
+		for (float a=50; a>0; a-=1)
+		{
+			system("CLS");
+			cout << "Auto Inputting in: " << a;
+			Sleep(100);
+		}
+
+		// Calls Auto_Input funcion
+		Auto_Input();
+		start = clock();
+	}
+	else if (Input_Value == 14) // Auto outputs the board
+	{
+		// 5 second delay so user can place cursor on board
+		for (int a = 50; a > 0; a -= 1)
+		{
+			system("CLS");
+			cout << "Outputting in: " << a;
+			Sleep(100);
+		}
+
+		// Calls Auto_Output function
+		Output();
+	}
+	else if (Input_Value == 15) // Shows instructions
+	{
+		system("CLS");
+		cout << endl << Instructions;
+		system("pause");
+	}
+}
+
+	// This function automatically copies and records the board. (To be used with http://www.websudoku.com/)
+void Auto_Input()
+{
+	cout << endl;
+	for (int row = 0; row < 9; row++)
+	{
+		for (int col = 0; col < 9; col++)
+		{
+			// Cretes and initializes variables
+			int val = 0; // Value of the square being recorded
+			HGLOBAL hText; // Handle for the clipboard data
+			char *pText; // Text form of the square data
+			hText = GlobalAlloc(GMEM_DDESHARE|GMEM_MOVEABLE, 100);
+			pText = (char*)GlobalLock(hText);
+			strcpy(pText, "0");
+			GlobalUnlock(hText);
+
+			// Empties clipboard
+			OpenClipboard(NULL);
+			EmptyClipboard();
+			SetClipboardData(CF_TEXT, hText);
+			CloseClipboard();
+			
+			// Copy function (Ctrl + C)
+			keybd_event(0x11, 0, 0, 0);
+			Sleep(time);
+			keybd_event(0x43, 0, 0, 0);
+			Sleep(time);
+			keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0);
+			Sleep(time);
+			keybd_event(0x43, 0, KEYEVENTF_KEYUP, 0);
+			Sleep(time);
+
+			// Retrieves square data from source
+			OpenClipboard(NULL);
+			HANDLE clip0 = GetClipboardData(CF_TEXT); // Gets data from clipboard
+			GlobalLock(clip0);
+			char* c = (char*) clip0; // Converts clipboard data to char
+			sscanf(c, "%d" , &val); // Converts char to int
+			GlobalUnlock(clip0);
+			CloseClipboard();
+
+			// Displays value and sets appropriate board location to that value
+			cout << c << ", ";
+			Handle_Input(row, col, val);
+			keybd_event(0x27, 0, 0, 0);
+			Sleep(time);
+			keybd_event(0x27, 0, KEYEVENTF_KEYUP, 0);
+			Sleep(time);
+		}
+
+		cout << endl;
+		keybd_event(0x28, 0, 0, 0);
+		Sleep(time);
+		keybd_event(0x28, 0, KEYEVENTF_KEYUP, 0);
+		Sleep(time);
+	}
+
+	cout << endl;
+}
+	// Sets history of all moves to zero
 void Reset_History()
 {
 	for (int a = 0; a < 64; a++)
@@ -10,6 +185,7 @@ void Reset_History()
 				Undo [a][c][b] = 0;
 }
 
+	// Goes back a move, shifts history backwards
 void Undo_Move()
 {
 	for (int b = 0; b < 9; b++)
@@ -23,6 +199,7 @@ void Undo_Move()
 	Eliminate_Possible_Using_Known();
 }
 
+	// Shifts history, adds current board to history
 void Save_Move()
 {
 	for (int a = 63; a > 0; a--)
@@ -33,6 +210,8 @@ void Save_Move()
 		for (int c = 0; c < 9; c++)
 			Undo [0][c][b] = Known[c][b];
 }
+
+	// Resets known values to zero.
 void Known_Reset()
 {
 	for (int a = 0; a < 9; a++)
@@ -40,6 +219,7 @@ void Known_Reset()
 			Known [b][a] = 0;
 }
 
+	// Sets all possible values to true
 void Possibilities_Reset()
 {
 	for (int a = 0; a < 9; a++)
@@ -48,144 +228,72 @@ void Possibilities_Reset()
 				Possibilities [b][a][c] = true;
 }
 
-void Input()
-{
-	int Input_Column, Input_Row, Input_Value = 0;
+/*
+* Display Functions
+*/
 
-	cout << Opening_Message;
+	// Outputs values to source board. Known are displayed. Is a square is unknown, the possibilities are displayed
+void Output()
+{
+	cout << "\nOutputting Numbers...";
 	Display_Known();
-	Save_Move();
-	cout << "Column: ";
-	cin >> Input_Column;
-	cout << "Row: ";
-	cin >> Input_Row;
-	cout << "Value: ";
-	cin >> Input_Value;
-	cout << endl;
-	Input_Row--;
-	Input_Column--;
 
-	blah::Display_Contradictory = true;
-	Handle_Input(Input_Row, Input_Column, Input_Value);
-	blah::Display_Contradictory = false;
-}
-
-void Auto_Input()
-{
-	cout << endl;
-	for (int row = 0; row < 9; row++)
+	for (int a = 0; a < 9; a++)
 	{
-		for (int col = 0; col < 9; col++)
+		for (int b = 0; b < 9; b++)
 		{
-			int val = 0;
+			if (Known [b][a] > 0 && Known [b][a] < 10)
+			{
+				// Key of known square is pressed
+				keybd_event(0x30 + Known [b][a], 0, 0, 0);
+				Sleep(time);
+				keybd_event(0x30 + Known [b][a], 0, KEYEVENTF_KEYUP, 0);
+				Sleep(time);
+			}
+			else
+			{
+				for (int val = 0; val < 9; val++)
+				{
+					if (Possibilities[b][a][val])
+					{
+						// Key of posibility is pressed
+						keybd_event(0x31 + val, 0, 0, 0);
+						Sleep(time);
+						keybd_event(0x31 + val, 0, KEYEVENTF_KEYUP, 0);
+						Sleep(time);
+					}
+				}
+			}
 
-			HGLOBAL hText;
-			char *pText;
-			hText = GlobalAlloc(GMEM_DDESHARE|GMEM_MOVEABLE, 100);
-			pText = (char*)GlobalLock(hText);
-			strcpy(pText, "0");
-			GlobalUnlock(hText);
-
-			OpenClipboard(NULL);
-			EmptyClipboard();
-			SetClipboardData(CF_TEXT, hText);
-			CloseClipboard();
-			
-			// Copy function
-			keybd_event(0x11, 0, 0, 0);
-			Sleep(time);
-			keybd_event(0x43, 0, 0, 0);
-			Sleep(time);
-			keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0);
-			Sleep(time);
-			keybd_event(0x43, 0, KEYEVENTF_KEYUP, 0);
-			Sleep(time);
-
-			OpenClipboard(NULL);
-			HANDLE clip0 = GetClipboardData(CF_TEXT);
-			GlobalLock(clip0);
-			char* c = (char*) clip0;
-			sscanf(c, "%d" , &val);
-			GlobalUnlock(clip0);
-			CloseClipboard();
-			cout << c << ", ";
-			Handle_Input(row, col, val);
 			keybd_event(0x27, 0, 0, 0);
 			Sleep(time);
 			keybd_event(0x27, 0, KEYEVENTF_KEYUP, 0);
 			Sleep(time);
 		}
-		cout << endl;
 		keybd_event(0x28, 0, 0, 0);
 		Sleep(time);
 		keybd_event(0x28, 0, KEYEVENTF_KEYUP, 0);
 		Sleep(time);
 	}
-	cout << endl;
 }
 
-void Handle_Input(int Input_Row, int Input_Column, int Input_Value)
-{
-	int Num_Known_Values = 0;
+	// Displays the board of known squares
 
-	if ((Input_Value > 0 && Input_Value < 10 && !Check_Contradictory_Values(Input_Column, Input_Row, Input_Value)) || Input_Value == 0)
-	{
-		Known [Input_Column][Input_Row] = Input_Value;
-		if (Input_Value == 0)
-		{
-			Possibilities_Reset();
-			Eliminate_Possible_Using_Known();
-		}
-	}
-	else if (Input_Value == -1)
-	{
-		system ("CLS");
-		Known_Reset();
-		Possibilities_Reset();
-		Reset_History();
-	}
-	else if (Input_Value == -2)
-	{
-		system ("CLS");
-		Undo_Move();
-	}
-	else if (Input_Value == 10)
-	{
-		system("CLS");
-		Display_Possible();
-	}
-	else if (Input_Value == 11)
-	{
-		system("CLS");
-		Display_History();
-	}
-	else if (Input_Value == 12)
-	{
-		for (int a = 50; a > 0; a -= 1)
-		{
-			system("CLS");
-			cout << "Outputting in: " << a;
-			Sleep(100);
-		}
-		Output();
-	}
-	else if (Input_Value == 13)
-	{
-		blah::Auto = true;
-		Known_Reset();
-		Possibilities_Reset();
-		Reset_History();
-		for (float a=50; a>0; a-=1)
-		{
-			system("CLS");
-			cout << "Auto Inputting in: " << a;
-			Sleep(100);
-		}
-		Auto_Input();
-	}
-}
+// It takes the following format, where X's are the square values. 1-9 are known, - is unknown.
 /*
-* Display Functions
+	[---------|---------|---------]
+	[  X X X  |  X X X  |  X X X  ]
+	[  X X X  |  X X X  |  X X X  ]
+	[  X X X  |  X X X  |  X X X  ]
+	[---------|---------|---------]
+	[  X X X  |  X X X  |  X X X  ]
+	[  X X X  |  X X X  |  X X X  ]
+	[  X X X  |  X X X  |  X X X  ]
+	[---------|---------|---------]
+	[  X X X  |  X X X  |  X X X  ]
+	[  X X X  |  X X X  |  X X X  ]
+	[  X X X  |  X X X  |  X X X  ]
+	[---------|---------|---------]
 */
 
 void Display_Known()
@@ -200,6 +308,7 @@ void Display_Known()
 	{
 		cout << "    [";
 		count2 = 0;
+
 		for (int b = 0; b < 9; b++)
 		{
 			if (count2 > 2)
@@ -207,7 +316,9 @@ void Display_Known()
 				cout << "|";
 				count2 = 0;
 			}
+
 			count2++;
+
 			if (Known [b][a] == 0)
 				cout << " " << "-" << " ";
 			else
@@ -216,6 +327,7 @@ void Display_Known()
 
 		count1++;
 		cout << "]\n";
+
 		if (count1 > 2)
 		{
 			cout << "    [---------|---------|---------]\n";
@@ -223,9 +335,11 @@ void Display_Known()
 			count2 = 0;
 		}
 	}
+
 	cout << endl;
 }
 
+	// Displays the prevoius moves
 void Display_History()
 {
 	int x = 0;
@@ -273,6 +387,15 @@ void Display_History()
 	cout << endl;
 }
 
+	// Displays the possibilities of each square
+// Takes the following format.
+// There is a set for each square, displaying the possibility of each square
+// Each value is boolean
+
+/*
+	{Row, Column}: Value_1, Value_2 ... Value_9
+*/ 
+	
 void Display_Possible()
 {
 	cout << endl;
@@ -298,6 +421,7 @@ void Display_Possible()
 * Diagnostic Functions
 */
 
+	// Finds the number of values that are known
 int Find_Num_Known()
 {
 	int Num_Known_Values = 0;
@@ -309,25 +433,30 @@ int Find_Num_Known()
 	return Num_Known_Values;
 }
 
+	// Finds the number of possibilities of a given square
 int Find_Num_Possible (int Column, int Row)
 {
-	int count1 = 0;
+	int count = 0;
 
 	for (int a = 0; a < 9; a++)
 		if (Possibilities [Column][Row][a])
-			count1++;
+			count++;
 
-	return count1;
+	return count;
 }
 
+	// Checks a square to make sure that there aren't other known squares that conflict with the chosen value
 bool Check_Contradictory_Values (int Column, int Row, int Value)
 {
+	if (Value == 0) // Values of 0 are disregarded
+		return false;
+
 	// Check in same row.
 	for (int a = 0; a < 9; a++)
 	{
 		if (Known [a][Row] == Value && a != Column)
 		{
-			if (blah::Display_Contradictory)
+			if (Display_Contradictory)
 				cout << "\nContradicting value at:\n - Column " << (a + 1) << "\n - Row " << (Row + 1) << "\n - Value " << Value << "\n\n";
 			return true;
 		}
@@ -338,7 +467,7 @@ bool Check_Contradictory_Values (int Column, int Row, int Value)
 	{
 		if (Known [Column][a] == Value && a != Row)
 		{
-			if (blah::Display_Contradictory)
+			if (Display_Contradictory)
 				cout << "\nContradicting value at:\n - Column " << (Column + 1) << "\n - Row " << (a + 1) << "\n - Value " << Value << "\n\n";
 			return true;
 		}
@@ -353,7 +482,7 @@ bool Check_Contradictory_Values (int Column, int Row, int Value)
 			{
 				if (! (a == Row && b == Column))
 				{
-					if (blah::Display_Contradictory)
+					if (Display_Contradictory)
 						cout << "\nContradicting value at:\n - Column " << (b + 1) << "\n - Row " << (a + 1) << "\n - Value " << Value << "\n\n";
 					return true;
 				}
@@ -363,11 +492,24 @@ bool Check_Contradictory_Values (int Column, int Row, int Value)
 	return false;
 }
 
+	// Returns true if two squares have the same possibilities
+bool ComparePossibilities (int Column1, int Row1, int Column2, int Row2)
+{
+	for (int a = 0; a < 9; a++)
+	{
+		if (!Possibilities [Column1][Row1][a] && Possibilities [Column2][Row2][a])
+			return false;
+		else if (Possibilities [Column1][Row1][a] && !Possibilities [Column2][Row2][a])
+			return false;
+	}
+	return true;
+}
+
 /*
 * Solving and elimination functions.
 */
-
-void Eliminate_Possible_Using_Known() // Uses the known value for a square to eliminate all other possibilities.
+	// Uses the known value for a square to eliminate all other possibilities.
+void Eliminate_Possible_Using_Known()
 {
 	for (int a = 0; a < 9; a++)
 	{
@@ -383,31 +525,29 @@ void Eliminate_Possible_Using_Known() // Uses the known value for a square to el
 	}
 }
 
-void Elimination_A() // Checks known cosquares for any known numbers and eliminates those values accordingly.
+	// Checks known cosquares for any known numbers and eliminates those values accordingly.
+void Elimination_A()
 {
-	int a, b, c;
-	Eliminate_Possible_Using_Known();
-
-	for (a = 0; a < 9; a++)
-		for (b = 0; b < 9; b++)
-			for (c = 0; c < 9; c++)
+	for (int a = 0; a < 9; a++)
+		for (int b = 0; b < 9; b++)
+			for (int c = 0; c < 9; c++)
 				if (Check_Contradictory_Values (b, a, c + 1))
 					Possibilities [b][a][c] = false;
 }
 
-void Elimination_B() // Sees if there is only one possibility for a given square.
+	// Sees if there is only one possibility for a given square.
+void Elimination_B()
 {
-	int a, b, c;
-
-	for (a = 0; a < 9; a++)
-		for (b = 0; b < 9; b++)
+	for (int a = 0; a < 9; a++)
+		for (int b = 0; b < 9; b++)
 			if (Find_Num_Possible (b, a) == 1)
-				for (c = 0; c < 9; c++)
+				for (int c = 0; c < 9; c++)
 					if (Possibilities [b][a][c])
 						Known [b][a] = c + 1;
 }
 
-void Elimination_C() // Checks if there is only one square in a row, column, or group that has a certain possible value.
+	// Checks if there is only one square in a row, column, or group that has a certain possible value.
+void Elimination_C()
 {
 	int count;
 
@@ -429,7 +569,6 @@ void Elimination_C() // Checks if there is only one square in a row, column, or 
 	}
 
 	// Check column by column.
-
 	for (int a = 0; a < 9; a++)
 	{
 		for (int b = 0; b < 9; b++)
@@ -449,7 +588,6 @@ void Elimination_C() // Checks if there is only one square in a row, column, or 
 
 
 	// Check group by group.
-
 	for (int vert = 0; vert < 3; vert++)
 	{
 		for (int horiz = 0; horiz < 3; horiz++)
@@ -472,35 +610,34 @@ void Elimination_C() // Checks if there is only one square in a row, column, or 
 	}
 }
 
-void Elimination_D() // Naked twin exclusion
+	// Naked twin exclusion
+void Elimination_D()
 {
 	// Check twins in rows. 
-	for (int a = 0; a < 9; a ++) // Comp1 row
-		for (int b = 0; b < 9; b++) // Comp1 col
-			if (Find_Num_Possible (b, a) == 2) // Get num poss
-
-				for (int c = b + 1; c < 9; c++) // Comp2 col
-					if (ComparePossibilities(b, a, c, a)) // Compare the Comp1 and Comp2
-
-						for (int d = 0; d < 9; d++) // Goes down cols to eliminate poss of each square
-							if (d != b && d != c) // Skips Comp1 and Comp2
-								for (int e = 0; e < 9; e++) // Goes down all poss 1-9
-									if (Possibilities [b][a][e]) // If the val in one twin is true
-										Possibilities [d][a][e] = false; // The corresponding val is set to false
+	for (int a = 0; a < 9; a ++) // Row of 1st number being checked
+		for (int b = 0; b < 9; b++) // Column of 1st number being checked
+			if (Find_Num_Possible (b, a) == 2) // Checks if there are only 2 possibilities for that square
+				for (int c = b + 1; c < 9; c++) // Column of 2nd number being searched
+					if (ComparePossibilities(b, a, c, a)) // If the possibilities of both squares being searched match
+						for (int d = 0; d < 9; d++) // Goes down the row to eliminate possibilities of the other squares
+							if (d != b && d != c) // Skips the squares being searched
+								for (int e = 0; e < 9; e++) // Goes down all possibilities of the other square
+									if (Possibilities [b][a][e]) // If the value in either twin is true
+										Possibilities [d][a][e] = false; // The corresponding value in the is set to false for the other square
 
 	// Check twins in columns. (Same thing as prevoius, but flips rows and columns for functions.)
-	for (int a = 0; a < 9; a ++) // Comp1 col
-		for (int b = 0; b < 9; b++) // Comp1 row
-			if (Find_Num_Possible (a, b) == 2) // Get num poss
-
-				for (int c = b + 1; c < 9; c++) // Comp 2 row
-					if (ComparePossibilities(a, b, a, c)) // Compare Comp1 and Comp2
-
-						for (int d = 0; d < 9; d++) // Goes down rows to eliminate poss of each square
-							if (d != b && d != c) // Skips Comp1 and Comp2
-								for (int e = 0; e < 9; e++) // Goes down all poss 1-9
-									if (Possibilities [a][b][e]) // If the value in one twin is true
-										Possibilities [a][d][e] = false; // The corresponding value is false
+	for (int a = 0; a < 9; a ++) // Column of 1st
+		for (int b = 0; b < 9; b++) // Row of 1st
+			if (Find_Num_Possible (a, b) == 2)
+				for (int c = b + 1; c < 9; c++) // Column of 2nd
+					if (ComparePossibilities(a, b, a, c))
+						for (int d = 0; d < 9; d++) // Rows of other
+							if (d != b && d != c)
+								for (int e = 0; e < 9; e++)
+									if (Possibilities [a][b][e])
+										Possibilities [a][d][e] = false;
+	
+	// Checks twins in groups
 	/*
 	// Check same group.
 	for (h = 0; h < 3; h++) // Columns of groups
@@ -524,38 +661,27 @@ void Elimination_D() // Naked twin exclusion
 	*/
 }
 
-bool ComparePossibilities (int Column1, int Row1, int Column2, int Row2)
-{
-	for (int a = 0; a < 9; a++)
-	{
-		if (!Possibilities [Column1][Row1][a] && Possibilities [Column2][Row2][a])
-		{
-			//cout << Column1+1 << ", " << Row1+1 << " and " << Column2+1 << ", " << Row2+1 << " don't match.\n";
-			return false;
-		}
-		else if (Possibilities [Column1][Row1][a] && !Possibilities [Column2][Row2][a])
-		{
-			//cout << Column1+1 << ", " << Row1+1 << " and " << Column2+1 << ", " << Row2+1 << " don't match.\n";
-			return false;
-		}
-	}
-	//cout << Column1+1 << ", " << Row1+1 << " and " << Column2+1 << ", " << Row2+1 << " match.\n";
-	return true;
-}
+	// Guess and check
+	// This simulates a square
+	// If it finds a solution, it accepts that solution.
+	// If it concludes a square is incorrect, that square is marked as such
 
-void Elimination_E() // Guess and check
+void Elimination_E()
 {
-	int prev_store = blah::prev;
+	int prev_store = Previous;
 
+	// Stores current known values as backup
 	for (int a = 0; a < 9; a++)
 		for (int b = 0; b < 9; b++)
 			Known_Store [a][b] = Known [a][b];
 	
+	// Stores possibilities as backup
 	for (int a = 0; a < 9; a++)
 		for (int b = 0; b < 9; b++)
 			for (int c = 0; c < 9; c++)
 				Possibilities_Store [a][b][c] = Possibilities [a][b][c];
 	
+	// Does a simulation for each possible value of each square
 	for (int a = 0; a < 9; a++)
 	{
 		for (int b = 0; b < 9; b++)
@@ -564,13 +690,12 @@ void Elimination_E() // Guess and check
 			{
 				if (Possibilities [b][a][c])
 				{
-					Known [b][a] = c + 1;
-					//Sleep (100);
-					//printf ("Guess and check: %i, %i, %i...", b+1, a+1, c+1);
+					Known [b][a] = c + 1; // Sets the square to the value being tested
 
 					while (1)
 					{
 						int Num_Sweeps = 2;
+
 						for (int i = 0; i < Num_Sweeps; i++) 
 						{
 							Elimination_A();
@@ -578,35 +703,32 @@ void Elimination_E() // Guess and check
 							Elimination_C();
 							Elimination_D();
 						}
-						if ((Find_Num_Known() - blah::prev) == 0)
+
+						if ((Find_Num_Known() - Previous) == 0)
 						{
-							//Display_Known();
-							//cout << "Nope\n";
-							break;
+							break; // If no progress is being made, restore the board and move on to a new value to simulate
 						}
-						if (Find_Num_Known() >= 81)
+
+						if (Find_Num_Known() >= 81) // All 81 squares have been found
 						{	
-							//Display_Known();
-							bool Fine = true;
-							//blah::Display_Contradictory = true;
+							bool Fine = true; // True means there are no problems with the board so far
 							for (int a = 0; a < 9; a++)
 								for (int b = 0; b < 9; b++)
-									if (Check_Contradictory_Values (b, a, Known [b][a]))
+									if (Check_Contradictory_Values (b, a, Known [b][a])) // There is a conflict in the squares
 										Fine = false;
-							//blah::Display_Contradictory = false;
-							if (Fine)
+
+							if (Fine) // If all 81 squares are found and there are no conflicts, then the board has been solved
 							{
 								goto Done;
 							}
-							else
+							else // If all 81 squares are found, but there are conflicts, then that means the simulated value doesn't work
 							{
-								//cout << "Almost\n";
 								Possibilities_Store [b][a][c] = false;
 								Possibilities [b][a][c] = false;
 								break;
 							}
 						}
-						blah::prev = Find_Num_Known();
+						Previous = Find_Num_Known();
 					}
 					
 					// Restore all values
@@ -618,87 +740,47 @@ void Elimination_E() // Guess and check
 							for (int c = 0; c < 9; c++)
 								Possibilities [a][b][c] = Possibilities_Store [a][b][c];
 				}
-				blah::prev = prev_store;
+
+				Previous = prev_store;
 			}
 		}
 	}
 Done:
-	blah::prev = prev_store;
-	//int q;
-	//cin >> q;
-}
-
-void Output()
-{
-	cout << "\nOutputting Numbers...";
-	Display_Known();
-
-	for (int a = 0; a < 9; a++)
-	{
-		for (int b = 0; b < 9; b++)
-		{
-			if (Known [b][a] > 0 && Known [b][a] < 10)
-			{
-				keybd_event(0x30 + Known [b][a], 0, 0, 0);
-				Sleep(time);
-				keybd_event(0x30 + Known [b][a], 0, KEYEVENTF_KEYUP, 0);
-				Sleep(time);
-			}
-			else
-			{
-				for (int val = 0; val < 9; val++)
-				{
-					if (Possibilities[b][a][val])
-					{
-						keybd_event(0x31 + val, 0, 0, 0);
-						Sleep(time);
-						keybd_event(0x31 + val, 0, KEYEVENTF_KEYUP, 0);
-						Sleep(time);
-					}
-				}
-			}
-
-			keybd_event(0x27, 0, 0, 0);
-			Sleep(time);
-			keybd_event(0x27, 0, KEYEVENTF_KEYUP, 0);
-			Sleep(time);
-		}
-		keybd_event(0x28, 0, 0, 0);
-		Sleep(time);
-		keybd_event(0x28, 0, KEYEVENTF_KEYUP, 0);
-		Sleep(time);
-	}
+	Previous = prev_store;
 }
 
 int main()
 {
+	duration = 0;
 	Known_Reset();
 	Possibilities_Reset();
 	Reset_History();
-	blah::prev = 0;
-	blah::Auto = false;
+	Previous = 0;
+	Auto = false;
 	int Num_Sweeps = 2;
 
 	while(1)
 	{
 		do
 		{
-			blah::prev = Find_Num_Known();
-			for (int a = 0; a < Num_Sweeps; a++) 
+			Previous = Find_Num_Known();
+			for (int a = 0; a < Num_Sweeps; a++) // Sweeps through the solving functions twice for good measure before continuing
 			{
 				Elimination_A();
 				Elimination_B();
 				Elimination_C();
 				Elimination_D();
 			}
-			if (Find_Num_Known() == blah::prev && (Find_Num_Known() >= 17))
+			if (Find_Num_Known() == Previous && (Find_Num_Known() >= 17)) // At least 17 squares are needed to have a unique solution
 				Elimination_E();
 		}
-		while (Find_Num_Known() != blah::prev);
+		while (Find_Num_Known() != Previous);
 		
-		if (blah::Auto)
+		duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+
+		if (Auto)
 			Output();
-		blah::Auto = false;
+		Auto = false;
 		Input();
 	}
 }
