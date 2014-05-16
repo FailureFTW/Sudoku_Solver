@@ -47,6 +47,7 @@ void Handle_Input(int Input_Row, int Input_Column, int Input_Value)
 			Possibilities_Reset();
 			Eliminate_Possible_Using_Known();
 		}
+		Display_Contradictory = false;
 	}
 	else if (Input_Value == -1) // Resets the board
 	{
@@ -116,7 +117,7 @@ void Handle_Input(int Input_Row, int Input_Column, int Input_Value)
 	}
 }
 
-	// This function automatically copies and records the board. (To be used with http://www.websudoku.com/)
+	// This function automatically copies and records the board.
 void Auto_Input()
 {
 	cout << endl;
